@@ -8,6 +8,8 @@
 // defines
 #define m_increment 5       // gameplay minutes that increments in each loop
 #define s_loop 5            // realtime seconds in loop
+#define BEANS_CAN_ENERGY 300
+#define REST_HOURS       4
 
 // structures
 struct datetime {
@@ -27,10 +29,10 @@ short miles; //miles travelled
 struct environment {
     short temp;
     short wood_available;
-    float rain_probability; // probability of rain in a day
+    float rain_probability; // probability of rain in a day (0 to 100)
     short minutes_rain_left;
     short minutes_since_last_rain;
-    short fire; // 0 means no fie. different to 0 means fire left in minutes
+    short fire; // 0 means no fire. different to 0 means fire left in minutes
 };
 
 struct goods {
@@ -47,6 +49,7 @@ struct inventory {
     short matches;
     short rain_catcher;
     short rain_catcher_fills;
+    short beans_can;
 };
 
 // prototipos
@@ -66,6 +69,7 @@ void decrease_stamina(float t);
 void rest(short hours);
 void start_fire();
 void feed_wood_to_fire();
+void eat_beans_can();
 void handle_rain();
 void * show_progressbar(void * p);
 
@@ -77,6 +81,8 @@ struct health health;
 struct goods goods;
 struct inventory inventory;
 pthread_t forward_time_thread, input_thread, progress_bar_thread, rain_thread;
+
+int in_pause = 0;
 
 /* *****************************************************************************
    FUNCIONES DE VISTA
@@ -99,17 +105,19 @@ void print_main_menu() {
     mvprintw(26, 0, "Boil water                              [b]   (15 min)");
     wclrtoeol(stdscr);
 
-    mvprintw(28, 0, "Rest                                    [r]   (4 hours)");
+    mvprintw(28, 0, "Eat beans can                           [o]");
     wclrtoeol(stdscr);
-    mvprintw(30, 0, "Navigate                                [n]");
+    mvprintw(30, 0, "Rest                                    [r]   (4 hours)");
     wclrtoeol(stdscr);
-    mvprintw(31, 0, "Shelter                                 [s]");
+    mvprintw(31, 0, "Navigate                                [n]");
     wclrtoeol(stdscr);
-    mvprintw(32, 0, "Food                                    [o]");
+    mvprintw(32, 0, "Shelter                                 [s]");
     wclrtoeol(stdscr);
+    //mvprintw(33, 0, "Food                                    [o]");
+    //wclrtoeol(stdscr);
     mvprintw(33, 0, "Crafting                                [c]");
     wclrtoeol(stdscr);
-    mvprintw(34, 0, "Test                                    [t]");
+    mvprintw(34, 0, "Test (forward time)                     [t]");
     wclrtoeol(stdscr);
 }
 
@@ -202,6 +210,8 @@ void print_inventory() {
     wclrtoeol(stdscr);
     mvprintw(16, COLS-30, "rain catcher fills: %d", inventory.rain_catcher_fills);
     wclrtoeol(stdscr);
+    mvprintw(17, COLS-30, "beans can: %d", inventory.beans_can);
+    wclrtoeol(stdscr);
 }
 
 void show_status() {
@@ -238,6 +248,7 @@ void check_health() {
         else if (! health.hydratation)
             mvprintw(1, 0, "Did not drink water for days..");
         wclrtobot(stdscr);
+        mvprintw(2, 0, "Press 'q' to quit the game.");
         refresh();
         getch();
         shall_quit = 1;
@@ -286,6 +297,7 @@ void forward_time(short minutes) {
 
 void * rain_thread_function(void * p) {
     while (! shall_quit) {
+        if (in_pause) continue;
         sleep(60/m_increment); // sleep one gameplay hour
         handle_rain();
     }
@@ -293,6 +305,7 @@ void * rain_thread_function(void * p) {
 
 void * time_thread_function(void * p) {
     while (! shall_quit) {
+        if (in_pause) continue;
         show_status();
         sleep(s_loop);
         forward_time(m_increment);
@@ -304,7 +317,17 @@ void * input(void * p) {
     while (! shall_quit) {
         int d = getch();
 
-        if (d == 'q') {
+        if (d == ' ') {
+            in_pause = ! in_pause;
+            if (in_pause) {
+                wmove(stdscr, 0, 0);
+                wclrtobot(stdscr);
+                mvprintw(0, 0, "PAUSE");
+                refresh();
+                continue;
+            }
+            show_status();
+        } else if (d == 'q') {
             shall_quit = 1;
             msg("QUITTING !");
             wmove(stdscr, 0, 0);
@@ -314,28 +337,28 @@ void * input(void * p) {
             pthread_cancel(forward_time_thread);
             pthread_cancel(rain_thread);
             return NULL;
-        } else if (d == 'd') {
-            get_wood();
-        } else if (d == 'f') {
-            start_fire();
-        } else if (d == 'e') {
-            feed_wood_to_fire();
-        } else if (d == 'w') {
-            drink_water(0);
-        } else if (d == 'y') {
-            fill_bottles_water_with_rain_catcher_fills();
         } else if (d == 'b') {
             boil_water();
-        } else if (d == 'w') {
-            drink_water(0);
+        } else if (d == 'd') {
+            get_wood();
+        } else if (d == 'e') {
+            feed_wood_to_fire();
+        } else if (d == 'f') {
+            start_fire();
+        } else if (d == 'o') {
+            eat_beans_can();
         } else if (d == 'r') {
-            rest(4);
+            rest(REST_HOURS);
         } else if (d == 't') {
             forward_time(60);
             check_health();
             show_status();
+        } else if (d == 'w') {
+            drink_water(0);
+        } else if (d == 'y') {
+            fill_bottles_water_with_rain_catcher_fills();
         } else if (d != -1) {
-            mvprintw(LINES-2, 20, "%d %c", d, d);
+            mvprintw(LINES-1, 0, "%d %c", d, d);
             wclrtoeol(stdscr);
             refresh();
         }
@@ -373,6 +396,7 @@ int main(int argc, char * argv[]) {
     inventory.filled_unsafe_bottles = 1;
     inventory.matches = 0;
     inventory.rain_catcher = 1;
+    inventory.beans_can = 10;
 
     initscr();
     noecho();
@@ -461,7 +485,7 @@ void get_wood() {
     return;
 }
 
-// this function is called iby thread every gameplay hour
+// this function is called by thread every gameplay hour
 void handle_rain() {
     //old implementation:
     //int r = rand_lim(10);
@@ -541,6 +565,14 @@ void feed_wood_to_fire() {
     if (! goods.wood) return;
     goods.wood--;
     environment.fire += environment.fire >= 120 ? 120 : 60;
+    show_status();
+    return;
+}
+
+void eat_beans_can() {
+    if (! inventory.beans_can) return;
+    inventory.beans_can--;
+    increase_energy(BEANS_CAN_ENERGY);
     show_status();
     return;
 }
