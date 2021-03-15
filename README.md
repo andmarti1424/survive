@@ -26,8 +26,11 @@ Tu misión es sobrevivir y encontrar un lugar seguro.
 GAME ENDS WHEN:
 
 player gets rescued
+
 player gets to safe place
+
 player dies
 
 Player can die because of hydratation, hipotermia, because of starving, or can get killed.
+
 Player can get rescued at anytime. The longer you travel, the more probable is to get rescued, or to get to safe place.
