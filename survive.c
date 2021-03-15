@@ -18,7 +18,7 @@
  *  player gets to safe place
  *  player dies
  *
- *  Player can die because of hydratation, hipotermia, because of starving, or can get killed.
+ *  Player can die because of dehydratation, hypothermia, because of starving, or can get killed.
  *  Player can get rescued at anytime. The longer you travel, the more probable is to get rescued, or to get to safe place.
  *
  */
