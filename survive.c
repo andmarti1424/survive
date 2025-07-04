@@ -50,6 +50,8 @@
 #define HOUR_DECREASE_STAMINA_DURING_NAVIGATION        50
 #define HOUR_DECREASE_HYDRATATION_DURING_NAVIGATION    40
 
+int rand_lim(int limit);
+
 // structures
 struct datetime {
     int day;
